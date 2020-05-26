@@ -15,6 +15,12 @@
  */
 package io.netty.bootstrap;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.Map;
+import java.util.Map.Entry;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -24,20 +30,14 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.resolver.AddressResolver;
+import io.netty.resolver.AddressResolverGroup;
 import io.netty.resolver.DefaultAddressResolverGroup;
 import io.netty.resolver.NameResolver;
-import io.netty.resolver.AddressResolverGroup;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
-
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * A {@link Bootstrap} that makes it easy to bootstrap a {@link Channel} to use
@@ -50,13 +50,16 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(Bootstrap.class);
 
+    //默认地址解析器对象
     private static final AddressResolverGroup<?> DEFAULT_RESOLVER = DefaultAddressResolverGroup.INSTANCE;
-
+    //启动类配置对象
     private final BootstrapConfig config = new BootstrapConfig(this);
 
+    //地址解析器对象
     @SuppressWarnings("unchecked")
     private volatile AddressResolverGroup<SocketAddress> resolver =
             (AddressResolverGroup<SocketAddress>) DEFAULT_RESOLVER;
+    //链接地址
     private volatile SocketAddress remoteAddress;
 
     public Bootstrap() { }
@@ -110,12 +113,14 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
      * Connect a {@link Channel} to the remote peer.
      */
     public ChannelFuture connect() {
+        //检验必要参数
         validate();
         SocketAddress remoteAddress = this.remoteAddress;
         if (remoteAddress == null) {
             throw new IllegalStateException("remoteAddress not set");
         }
 
+        // 解析远程地址，并进行连接
         return doResolveAndConnect(remoteAddress, config.localAddress());
     }
 
@@ -197,14 +202,16 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
                                                final SocketAddress localAddress, final ChannelPromise promise) {
         try {
             final EventLoop eventLoop = channel.eventLoop();
+            //获取当前地址解析类
             final AddressResolver<SocketAddress> resolver = this.resolver.getResolver(eventLoop);
-
+            //如果不支持
             if (!resolver.isSupported(remoteAddress) || resolver.isResolved(remoteAddress)) {
                 // Resolver has no idea about what to do with the specified remote address or it's resolved already.
                 doConnect(remoteAddress, localAddress, promise);
                 return promise;
             }
 
+            //解析远程地址
             final Future<SocketAddress> resolveFuture = resolver.resolve(remoteAddress);
 
             if (resolveFuture.isDone()) {
@@ -212,10 +219,12 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
 
                 if (resolveFailureCause != null) {
                     // Failed to resolve immediately
+                    //失败 关闭channel  并回调通知 promise 异常
                     channel.close();
                     promise.setFailure(resolveFailureCause);
                 } else {
                     // Succeeded to resolve immediately; cached? (or did a blocking lookup)
+                    //连接远程
                     doConnect(resolveFuture.getNow(), localAddress, promise);
                 }
                 return promise;

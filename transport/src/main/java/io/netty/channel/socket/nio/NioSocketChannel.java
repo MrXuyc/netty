@@ -15,6 +15,16 @@
  */
 package io.netty.channel.socket.nio;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
+import java.util.concurrent.Executor;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelException;
@@ -36,16 +46,6 @@ import io.netty.util.internal.UnstableApi;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.SocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.SocketChannel;
-import java.nio.channels.spi.SelectorProvider;
-import java.util.concurrent.Executor;
-
 import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
 
 /**
@@ -53,6 +53,7 @@ import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRI
  */
 public class NioSocketChannel extends AbstractNioByteChannel implements io.netty.channel.socket.SocketChannel {
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(NioSocketChannel.class);
+    //默认的 SelectorProvider 实现类。
     private static final SelectorProvider DEFAULT_SELECTOR_PROVIDER = SelectorProvider.provider();
 
     private static SocketChannel newSocket(SelectorProvider provider) {
@@ -69,6 +70,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
         }
     }
 
+    //channel对应的配置
     private final SocketChannelConfig config;
 
     /**
@@ -301,13 +303,17 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
 
     @Override
     protected boolean doConnect(SocketAddress remoteAddress, SocketAddress localAddress) throws Exception {
+        //绑定本机地址 一般不需要，系统直接默认
         if (localAddress != null) {
             doBind0(localAddress);
         }
 
+        //执行是否成功
         boolean success = false;
         try {
+            //连接远程地址
             boolean connected = SocketUtils.connect(javaChannel(), remoteAddress);
+            //若未连接完成，则关注连接事件
             if (!connected) {
                 selectionKey().interestOps(SelectionKey.OP_CONNECT);
             }
